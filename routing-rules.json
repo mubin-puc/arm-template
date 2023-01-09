@@ -1,0 +1,32 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "route_table1": {
+            "type": "Array"
+        },
+        "firewall IP for default route": {
+            "defaultValue": "192.168.7.8",
+            "type": "String"
+        }
+    },
+    "variables": {
+        "route-table": "rt-snet-001-vnet-avd-eus2-qa"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Network/routeTables/routes",
+            "apiVersion": "2020-11-01",
+            "name": "[concat(variables('route-table'),'/',variables('route-table'),'-',parameters('route_table1')[copyIndex('route_table1')].name)]",
+            "properties": {
+                "addressPrefix": "[parameters('route_table1')[copyIndex('route_table1')].addressPrefix]",
+                "nextHopType": "VirtualAppliance",
+                "nextHopIpAddress": "[parameters('firewall IP for default route')]"
+            },
+            "copy": {
+                "name": "route_table1",
+                "count": "[length(parameters('route_table1'))]"
+            }
+        }
+    ]
+}
