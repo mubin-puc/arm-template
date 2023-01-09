@@ -1,0 +1,716 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+
+    
+    "parameters": {
+        "vnet_CIDR": {
+            "type": "string",
+            "defaultValue": "10.16.228.0/22"
+       },
+        "subnet1_CIDR": {
+            "type": "string", 
+            "defaultValue": "10.16.228.0/23"
+        },
+        "subnet2_CIDR": {
+            "type": "string",
+            "defaultValue": "10.16.230.0/26"
+        },
+        "subnet3_CIDR": {
+            "type": "string",
+            "defaultValue": "10.16.230.64/28"
+        },
+        "app-name": {
+            "type" : "string",
+            "defaultValue": "avd"
+        },
+        "environment": {
+            "type": "string",
+            "allowedValues": ["prod","staging","qa","dev"],
+            "defaultValue": "qa"
+        },
+        "region": {
+            "type": "string",
+            "allowedValues": ["eastus2","canadacentral","germanywestcentral","centralindia","eastasia"],
+            "defaultValue": "eastus2"
+        
+        },
+        "firewall IP for default route": {
+            "type": "string",
+            "defaultValue": "192.168.7.8"
+        },
+        "name of the central vnet for peering": {
+            "type": "string",
+            "defaultValue": "vnet-avd-eus2-qa-central"
+        },
+        "address prefix of central vnet for peering": {
+            "type": "string",
+            "defaultValue": "192.168.0.0/16"
+        },
+        "name of the regional vnet for peering": {
+            "type": "string",
+            "defaultValue": "vnet-avd-eus2-qa-regional"
+        },
+        "address prefix of the regional vnet for peering": {
+            "type": "string",
+            "defaultValue": "172.0.0.0/16"
+        }
+     
+    },
+
+    "variables": {
+    "v-region": "[if(equals(parameters('region'),'eastus2'),'eus2',if(equals(parameters('region'),'centralindia'),'ci',if(equals(parameters('region'),'eastasia'),'ea',if(equals(parameters('region'),'canadacentral'),'ccan',if(equals(parameters('region'),'germanywestcentral'),'wcg','')))))]",
+    "vnet": "[concat('vnet','-',parameters('app-name'),'-',variables('v-region'),'-',parameters('environment'))]",
+    "snet1": "[concat('snet-001','-','vnet','-',parameters('app-name'),'-',variables('v-region'),'-',parameters('environment'))]",
+    "snet2": "[concat('snet-002','-','vnet','-',parameters('app-name'),'-',variables('v-region'),'-',parameters('environment'))]",
+    "snet3": "[concat('snet-003','-','vnet','-',parameters('app-name'),'-',variables('v-region'),'-',parameters('environment'))]",
+    "nsg_snet1": "[concat('nsg','-','snet-001','-','vnet','-',parameters('app-name'),'-',variables('v-region'),'-',parameters('environment'))]",
+    "nsg_snet2": "[concat('nsg','-','snet-002','-','vnet','-',parameters('app-name'),'-',variables('v-region'),'-',parameters('environment'))]",
+    "nsg_snet3": "[concat('nsg','-','snet-003','-','vnet','-',parameters('app-name'),'-',variables('v-region'),'-',parameters('environment'))]",
+    "rt_snet1":  "[concat('rt','-','snet-001','-','vnet','-',parameters('app-name'),'-',variables('v-region'),'-',parameters('environment'))]",
+    "rt_snet2":  "[concat('rt','-','snet-002','-','vnet','-',parameters('app-name'),'-',variables('v-region'),'-',parameters('environment'))]",
+    "rt_snet3":   "[concat('rt','-','snet-003','-','vnet','-',parameters('app-name'),'-',variables('v-region'),'-',parameters('environment'))]",
+    
+    "tag_costcenter": "AVD-Ops",
+    "tag_RCODE": "RO10",
+
+    "route_default": "Default",
+
+    "vnet_peering_central": "[concat('pr','-',variables('vnet'),'-',parameters('name of the central vnet for peering'))]",
+    "vnet_peering_central_dest": "[concat('pr','-',parameters('name of the central vnet for peering'),'-',variables('vnet'))]",
+    "vnet_peering_regional": "[concat('pr','-',variables('vnet'),'-',parameters('name of the regional vnet for peering'))]",
+     "vnet_peering_regional_dest": "[concat('pr','-',parameters('name of the regional vnet for peering'),'-',variables('vnet'))]"
+         },
+
+    //Resources are defined from here 
+     
+    "resources": [  
+      {
+        
+        "name": "[variables('vnet')]",
+        "type": "Microsoft.Network/virtualNetworks",
+        "apiVersion": "2020-11-01",
+        "location": "[parameters('region')]",
+        "tags": {
+            "costcenter": "[variables('tag_costcenter')]",
+            "RCODE": "[variables('tag_RCODE')]"
+        },
+        "dependsOn": ["[resourceId('Microsoft.Network/networkSecurityGroups',variables('nsg_snet1'))]","[resourceId('Microsoft.Network/routeTables', variables('rt_snet1'))]","[resourceId('Microsoft.Network/routeTables', variables('rt_snet2'))]","[resourceId('Microsoft.Network/routeTables', variables('rt_snet3'))]",
+                    "[resourceId('Microsoft.Network/networkSecurityGroups',variables('nsg_snet2'))]","[resourceId('Microsoft.Network/networkSecurityGroups',variables('nsg_snet3'))]"],
+                    //"[resourceId('Microsoft.Network/virtualNetworks/virtualNetworkPeerings',variables('vnet_peering_central'))]",
+                    //"[resourceId('Microsoft.Network/virtualNetworks',parameters('name of the regional vnet for peering'))]"],
+                         
+        "properties": {
+            "addressSpace": {
+                "addressPrefixes": [
+                    "[parameters('vnet_CIDR')]"
+                    
+                ]
+            },
+            "subnets": [
+                {
+                    "name": "[variables('snet1')]",
+                    "properties": {
+                        "addressPrefix": "[parameters('subnet1_CIDR')]",
+                        "networkSecurityGroup": {"id": "[resourceId('Microsoft.Network/networkSecurityGroups',variables('nsg_snet1'))]"},
+                        "routeTable" : {"id": "[resourceId('Microsoft.Network/routeTables',variables('rt_snet1'))]"}                
+                    }
+
+                },
+                {
+                    "name": "[variables('snet2')]",
+                    "properties": {
+                        "addressPrefix": "[parameters('subnet2_CIDR')]",
+                        "networkSecurityGroup": {"id": "[resourceId('Microsoft.Network/networkSecurityGroups',variables('nsg_snet2'))]"},
+                        "routeTable" : {"id": "[resourceId('Microsoft.Network/routeTables',variables('rt_snet2'))]"}                
+
+                    }
+                },
+                    
+                {
+                    "name": "[variables('snet3')]",
+                    "properties": {
+                        "addressPrefix": "[parameters('subnet3_CIDR')]",
+                        "networkSecurityGroup": {"id": "[resourceId('Microsoft.Network/networkSecurityGroups',variables('nsg_snet3'))]"},
+                        "routeTable" : {"id": "[resourceId('Microsoft.Network/routeTables',variables('rt_snet3'))]"}                
+                    }
+            
+                }
+                      
+        
+            ]
+            
+      }
+      
+      
+      },
+      
+        {
+            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+            "apiVersion": "2022-01-01",
+            "name": "[concat(variables('vnet'),'/',variables('vnet_peering_regional'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vnet'))]"
+            ],
+            "properties": {
+                "peeringState": "Connected",
+                "peeringSyncLevel": "FullyInSync",
+                "remoteVirtualNetwork": {
+                    "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('name of the regional vnet for peering'))]"
+                },
+                "allowVirtualNetworkAccess": true,
+                "allowForwardedTraffic": true,
+                "allowGatewayTransit": false,
+                "useRemoteGateways": false,
+                "doNotVerifyRemoteGateways": false,
+                "remoteAddressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('vnet_CIDR')]"
+                    ]
+                },
+                "remoteVirtualNetworkAddressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('address prefix of the regional vnet for peering')]"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+            "apiVersion": "2022-01-01",
+            "name": "[concat(parameters('name of the regional vnet for peering'),'/',variables('vnet_peering_regional_dest'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vnet'))]"
+            ],
+            "properties": {
+                "peeringState": "Connected",
+                "peeringSyncLevel": "FullyInSync",
+                "remoteVirtualNetwork": {
+                    "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnet'))]"
+                },
+                "allowVirtualNetworkAccess": true,
+                "allowForwardedTraffic": true,
+                "allowGatewayTransit": false,
+                "useRemoteGateways": false,
+                "doNotVerifyRemoteGateways": false,
+                "remoteAddressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('address prefix of the regional vnet for peering')]"
+                    ]
+                },
+                "remoteVirtualNetworkAddressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('vnet_CIDR')]"
+                    ]
+                }
+            }
+        },
+
+        {
+            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+            "apiVersion": "2022-01-01",
+            "name": "[concat(variables('vnet'),'/',variables('vnet_peering_central'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vnet'))]"
+            ],
+            "properties": {
+                "peeringState": "Connected",
+                "peeringSyncLevel": "FullyInSync",
+                "remoteVirtualNetwork": {
+                    "id": "[resourceId('Microsoft.Network/virtualNetworks',parameters('name of the central vnet for peering'))]"
+                },
+                "allowVirtualNetworkAccess": true,
+                "allowForwardedTraffic": true,
+                "allowGatewayTransit": false,
+                "useRemoteGateways": false,
+                "doNotVerifyRemoteGateways": false,
+                "remoteAddressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('vnet_CIDR')]"
+                    ]
+                },
+                "remoteVirtualNetworkAddressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('address prefix of central vnet for peering')]"
+                    ]
+                }
+            }
+        },
+
+         {
+            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+            "apiVersion": "2022-01-01",
+            "name": "[concat(parameters('name of the central vnet for peering'),'/',variables('vnet_peering_central_dest'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vnet'))]"
+            ],
+            "properties": {
+                "peeringState": "Connected",
+                "peeringSyncLevel": "FullyInSync",
+                "remoteVirtualNetwork": {
+                    "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnet'))]"
+                },
+                "allowVirtualNetworkAccess": true,
+                "allowForwardedTraffic": true,
+                "allowGatewayTransit": false,
+                "useRemoteGateways": false,
+                "doNotVerifyRemoteGateways": false,
+                "remoteAddressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('address prefix of central vnet for peering')]"
+                    ]
+                },
+                "remoteVirtualNetworkAddressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('vnet_CIDR')]"
+                    ]
+                }
+            }
+        },
+
+        
+        { 
+        "name": "[variables('nsg_snet1')]",
+        "type": "Microsoft.Network/networkSecurityGroups",
+        "apiVersion": "2020-11-01",
+        "location": "[parameters('region')]",
+        "tags": {
+            "costcenter": "[variables('tag_costcenter')]",
+            "RCODE": "[variables('tag_RCODE')]"
+        },
+        "properties": {
+             "securityRules": [
+                    {
+                        "name": "Deny-Storage-In",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "destinationAddressPrefix": "[parameters('subnet1_CIDR')]", 
+                            "access": "Deny",
+                            "priority": 110,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [
+                                "[parameters('subnet2_CIDR')]", 
+                                "[parameters('subnet3_CIDR')]" 
+                            ],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "Allow-SMB-To-Storage",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "TCP",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "445",
+                            "sourceAddressPrefix": "[parameters('subnet1_CIDR')]", 
+                            "access": "Allow",
+                            "priority": 110,
+                            "direction": "Outbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": [
+                                "[parameters('subnet2_CIDR')]", 
+                                "[parameters('subnet3_CIDR')]" 
+                            ]
+                        }
+                    },
+                    {
+                        "name": "Deny-Any-To-Storage",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "[parameters('subnet1_CIDR')]", 
+                            "access": "Deny",
+                            "priority": 120,
+                            "direction": "Outbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": [
+                                "[parameters('subnet2_CIDR')]",
+                                "[parameters('subnet3_CIDR')]"]
+                        }
+                    },
+                    {
+                        "name": "AllowICMPOut",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "ICMP",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Outbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "AllowICMPIn",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "ICMP",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    }
+             ]
+                }
+            
+        },
+        
+
+        
+        
+     {
+        "name": "[variables('nsg_snet2')]",
+        "type": "Microsoft.Network/networkSecurityGroups",
+        "apiVersion": "2020-11-01",
+        "location": "[parameters('region')]",
+        "tags": {
+            "costcenter": "[variables('tag_costcenter')]",
+            "RCODE": "[variables('tag_RCODE')]"
+        },
+        "properties": {
+            "securityRules": [
+                {
+                        "name": "Allow-AVD-To-Storage-In",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "TCP",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "445",
+                            "sourceAddressPrefix": "[parameters('subnet1_CIDR')]", 
+                            "destinationAddressPrefix": "[parameters('subnet2_CIDR')]", 
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "Deny-AVD-To-Storage-In",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "[parameters('subnet1_CIDR')]", 
+                            "destinationAddressPrefix": "[parameters('subnet2_CIDR')]", 
+                            "access": "Deny",
+                            "priority": 110,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "Deny-Any-To-AVD-Out",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "[parameters('subnet2_CIDR')]", 
+                            "destinationAddressPrefix": "[parameters('subnet1_CIDR')]", 
+                            "access": "Deny",
+                            "priority": 100,
+                            "direction": "Outbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "Deny-Netapp-To-Storage-In",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "[parameters('subnet3_CIDR')]", 
+                            "destinationAddressPrefix": "[parameters('subnet2_CIDR')]",
+                            "access": "Deny",
+                            "priority": 120,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "Deny-Any-To-Netapp-Out",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "[parameters('subnet2_CIDR')]", 
+                            "destinationAddressPrefix": "[parameters('subnet3_CIDR')]", 
+                            "access": "Deny",
+                            "priority": 110,
+                            "direction": "Outbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    }
+            ]
+        }
+     },
+  {
+    "name": "[variables('nsg_snet3')]",
+    "type": "Microsoft.Network/networkSecurityGroups",
+    "apiVersion": "2020-11-01",
+    "location": "[parameters('region')]",
+    "tags": {
+            "costcenter": "[variables('tag_costcenter')]",
+            "RCODE": "[variables('tag_RCODE')]"
+        },
+    "properties": {
+        "securityRules": [
+            {
+                        "name": "Allow-AVD-To-Storage-In",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "TCP",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "445",
+                            "sourceAddressPrefix": "[parameters('subnet1_CIDR')]",
+                            "destinationAddressPrefix": "[parameters('subnet3_CIDR')]", 
+                            "access": "Allow",
+                            "priority": 110,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "Deny-AVD-To-Storage-In",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "[parameters('subnet1_CIDR')]", 
+                            "destinationAddressPrefix": "[parameters('subnet3_CIDR')]", 
+                            "access": "Deny",
+                            "priority": 120,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "Deny-Any-To-AVD-Out",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "[parameters('subnet3_CIDR')]", 
+                            "destinationAddressPrefix": "[parameters('subnet1_CIDR')]", 
+                            "access": "Deny",
+                            "priority": 110,
+                            "direction": "Outbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "Deny-Storage-To-NetApp-In",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "[parameters('subnet2_CIDR')]", 
+                            "destinationAddressPrefix": "[parameters('subnet3_CIDR')]", 
+                            "access": "Deny",
+                            "priority": 130,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "Deny-Any-To-Storage-Out",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "[parameters('subnet3_CIDR')]", 
+                            "destinationAddressPrefix": "[parameters('subnet2_CIDR')]",
+                            "access": "Deny",
+                            "priority": 120,
+                            "direction": "Outbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "AllowICMPIn",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "ICMP",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "AllowICMPOut",
+                        "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+                        "properties": {
+                            "protocol": "ICMP",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Outbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    }
+        ]
+    }
+  },
+
+
+        {
+            "name": "[variables('rt_snet1')]",
+            "type": "Microsoft.Network/routeTables",
+            "apiVersion": "2020-11-01",
+            "location": "[parameters('region')]",
+            "tags": {
+            "costcenter": "[variables('tag_costcenter')]",
+            "RCODE": "[variables('tag_RCODE')]"
+            },
+            "properties": {
+                "routes": [
+                    {
+                        "name": "[concat(variables('rt_snet1'),'-',variables('route_default'))]",
+                        "properties": {
+                           "addressPrefix": "0.0.0.0/0",
+                            "nextHopType": "VirtualAppliance",
+                            "nextHopIpAddress": "[parameters('firewall IP for default route')]"
+                        }
+                    }
+                ],
+                "disableBgpRoutePropagation": false
+            }
+        },
+        {
+            "name": "[variables('rt_snet2')]",
+            "type": "Microsoft.Network/routeTables",
+            "apiVersion": "2020-11-01",
+            "location": "[parameters('region')]",
+            "tags": {
+                "costcenter": "[variables('tag_costcenter')]",
+                "RCODE": "[variables('tag_RCODE')]"
+             },
+            "properties": {
+                "routes": [
+                    {
+                        "name": "[concat(variables('rt_snet2'),'-',variables('route_default'))]",
+                        "properties": {
+                            "addressPrefix": "0.0.0.0/0",
+                            "nextHopType": "VirtualAppliance",
+                            "nextHopIpAddress": "[parameters('firewall IP for default route')]"
+                        }
+                    }
+                ],
+                "disableBgpRoutePropagation": false
+            }
+        },
+        {
+            "name": "[variables('rt_snet3')]",
+            "type": "Microsoft.Network/routeTables",
+            "apiVersion": "2020-11-01",
+            "location": "[parameters('region')]",
+            "tags": {
+                "costcenter": "[variables('tag_costcenter')]",
+                 "RCODE": "[variables('tag_RCODE')]"
+            },
+            "properties": {
+                "routes": [
+                    {
+                        "name": "[concat(variables('rt_snet3'),'-',variables('route_default'))]",
+                        "properties": {
+                            "addressPrefix": "0.0.0.0/0",
+                            "nextHopType": "VirtualAppliance",
+                            "nextHopIpAddress": "[parameters('firewall IP for default route')]"
+                        }
+                    }
+                ],
+                "disableBgpRoutePropagation": false
+            }
+        }
+        
+
+    
+        
+        
+  
+
+        
+        
+    
+    
+    ]
+
+
+
+    }
