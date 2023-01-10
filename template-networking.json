@@ -108,7 +108,7 @@
     "tag_RCODE": "RO10",
 
     "route_default": "Default",
-  
+
 
     "vnet_peering_central": "[concat('pr','-',variables('vnet'),'-',parameters('name of the central vnet for peering'))]",
     "vnet_peering_central_dest": "[concat('pr','-',parameters('name of the central vnet for peering'),'-',variables('vnet'))]",
@@ -669,7 +669,7 @@
 
     },
 
-//Vnet Peering Starts from here !
+    //Vnet Peering Starts from here !
 
     {
       "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
@@ -701,7 +701,7 @@
         }
       }
     },
-    
+
 
     {
       "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
@@ -741,6 +741,9 @@
       "name": "nested-rg_deploy-central-vnet",
       "subscriptionId": "[parameters('subscription id of the central vnet')]",
       "resourceGroup": "[parameters('resource group of the central vnet')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnet'))]"
+      ],
       "properties": {
         "mode": "Incremental",
         "template": {
@@ -785,6 +788,7 @@
       "name": "nested-rg_deploy-regional-vnet",
       "subscriptionId": "[parameters('subscription id of the regional vnet')]",
       "resourceGroup": "[parameters('resource group of the regional vnet')]",
+      "dependsOn": [ "[resourceId('Microsoft.Network/virtualNetworks', variables('vnet'))]" ],
       "properties": {
         "mode": "Incremental",
         "template": {
